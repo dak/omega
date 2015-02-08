@@ -1,0 +1,38 @@
+{
+    "name": "omega",
+    "version": "0.1.0",
+    "description": "A modern web micro framework",
+    "author": "Derek Kent <dak@dak.org>",
+    "scripts": {
+        "test": "node --harmony ./node_modules/.bin/gulp test"
+    },
+    "main": "./src/omega.js",
+    "repository": {
+        "type": "git",
+        "url": "git://github.com/dak/omega.git"
+    },
+    "bugs": {
+        "url": "https://github.com/dak/omega/issues"
+    },
+    "keywords": [
+        "framework",
+        "model",
+        "view",
+        "controller",
+        "es6"
+    ],
+    "dependencies": {},
+    "devDependencies": {},
+    "engines": {
+        "node": ">=0.12"
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "license": {
+        "type": "MIT",
+        "url": "https://github.com/dak/omega/raw/master/LICENSE"
+    }
+}
