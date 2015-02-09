@@ -25,18 +25,17 @@
         "concurrency",
         "es6"
     ],
-    "dependencies": {
-        "js-csp": "~0.3.3"
+    "jspm": {
+        "directories": {
+            "lib": "src"
+        },
+        "dependencies": {
+            "js-csp": "github:ubolonton/js-csp@^0.3.3"
+        }
     },
-    "devDependencies": {},
     "engines": {
         "node": ">=0.12"
     },
-    "files": [
-        "dist",
-        "README.md",
-        "LICENSE"
-    ],
     "license": {
         "type": "MIT",
         "url": "https://github.com/dak/omega/raw/master/LICENSE"

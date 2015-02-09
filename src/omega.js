@@ -1,4 +1,4 @@
-import csp from './csp/csp';
+import csp from 'js-csp';
 import Stream from './stream';
 import Model from './model';
 import Controller from './controller';

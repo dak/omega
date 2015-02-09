@@ -1,4 +1,4 @@
-import csp from './csp/csp';
+import csp from 'js-csp';
 import Stream from './stream';
 
 // TODO: Look into storing rendered html in a trie and memoizing the render function
