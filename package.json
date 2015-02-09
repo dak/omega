@@ -1,7 +1,7 @@
 {
     "name": "omega",
     "version": "0.1.0",
-    "description": "A modern web micro framework",
+    "description": "A modern web micro framework that supports CSP design patterns",
     "author": "Derek Kent <dak@dak.org>",
     "scripts": {
         "test": "node --harmony ./node_modules/.bin/gulp test"
@@ -15,13 +15,19 @@
         "url": "https://github.com/dak/omega/issues"
     },
     "keywords": [
+        "cusp",
         "framework",
         "model",
         "view",
         "controller",
+        "csp",
+        "coroutines",
+        "concurrency",
         "es6"
     ],
-    "dependencies": {},
+    "dependencies": {
+        "js-csp": "~0.3.3"
+    },
     "devDependencies": {},
     "engines": {
         "node": ">=0.12"
