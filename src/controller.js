@@ -19,16 +19,26 @@ import Stream from './stream';
 //     4) compare if the nodes have the same attributes and attribute values
 //          a) node.attributes, iterate through each and compare with getAttribute(name) and setAttribute(name, val)
 
-/*function reconcileDOM(first, second, parent) {
+
+/*
+Two nodes are equal if all the following conditions are true:
+
+They have the same Node Type
+They have the same nodeName, NodeValue, localName, nameSpaceURI and prefix
+They have the same childNodes with all the descendants
+They have the same attributes and attribute values (the attributes does not have be in the same order)
+*/
+// is it faster to cache some of these attributes?
+/*function reconcileDOMFast(first, second, parent) {
     parent = parent || first.parentNode;
 
-    if (!(second instanceof Node)) { return false; }
+    if (!(second instanceof Node)) { return null; }
 
     // check nodeName
     if (first instanceof Node && first.nodeName === second.nodeName) {
         // remove attributes
         if (first.attributes) {
-            for (let i=0, len=first.attributes.length; i < len; i++) {
+            for (var i=0, len=first.attributes.length; i < len; i++) {
                 if (!second.hasAttribute(first.attributes[i].name)) {
                     first.removeAttribute(first.attributes[i].name);
                 }
@@ -37,32 +47,39 @@ import Stream from './stream';
 
         // add attributes
         if (second.attributes) {
-            for (let i=0, len=second.attributes.length; i < len; i++) {
-                first.setAttribute(second.attributes[i].name, second.attributes[i].value);
-            }
-        }
-
-        if (second.hasChildNodes()) {
-            // call recursively for each child node
-            for (let i=0, len=second.childNodes.length; i < len; i++) {
-                reconcileDOM(first.childNodes[i], second.childNodes[i], first);
-            }
-
-            if (first.hasChildNodes() && first.childNodes.length > second.childNodes.length) {
-                for (let i=second.childNodes.length, len=first.childNodes.length; i < len; i++) {
-                    first.childNodes[i].remove();
+            for (var i=0, len=second.attributes.length; i < len; i++) {
+                if (first.getAttribute(second.attributes[i].name) !== second.attributes[i].value) {
+                    first.setAttribute(second.attributes[i].name, second.attributes[i].value);
                 }
             }
         }
+
+        // call recursively for each child node
+        if (second.hasChildNodes()) {
+            for (var i=j=0; i+j < second.childNodes.length; i++) {
+                j += reconcileDOMFast(first.childNodes[i], second.childNodes[i+j], first);
+            }
+        } else {
+            first.textContent = second.textContent;
+        }
+
+        if (first.childNodes.length > second.childNodes.length-j) {
+            for (var i=second.childNodes.length-j, len=first.childNodes.length; i < len; i++) {
+                first.childNodes[i].remove();
+            }
+        }
+
+        return 0;
     } else {
         // insert second before first and remove first
-        if (parent instanceof Node) {
-            parent.insertBefore(second.cloneNode(true), first);
+        if (second && parent instanceof Node) {
+            parent.insertBefore(second, first);
             if (first instanceof Node) { first.remove(); }
-        } else {
-            first = second.cloneNode(true);
+            return -1;
         }
     }
+
+    return 0;
 }*/
 
 /*
@@ -170,6 +187,8 @@ class Regions {
     }
 
 }
+
+// FIX: Are events lost on re-render since they're on DOM elements being replaced, not on the top-level element?
 
 export default class Controller extends Stream {
 
