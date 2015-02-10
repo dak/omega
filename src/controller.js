@@ -3,6 +3,67 @@ import Stream from './stream';
 
 // TODO: Look into storing rendered html in a trie and memoizing the render function
 //       http://calendar.perfplanet.com/2013/diff/
+//       http://goo-apple.appspot.com/article/2e8334fc-45d1-42e2-adde-b43a17e8b12a
+//       http://facebook.github.io/react/docs/reconciliation.html
+//
+// algorithm:
+//   start from the DOM node associated with the view
+//   check if the node has any children (node.hasChildNodes())
+//   if it has children, recursively traverse through each node.childNodes
+//     1) compare if the nodes have the same nodeName (can localName be used and is it faster?)
+//          a) if not, add the new node
+//     2) compare if the nodes have the same nodeValue
+//          a) if not, set them equal
+//     3) compare if the nodes have the same classList (or use 'class' as an attribute and just getAttribute('class'))
+//          a) if not, set them equal
+//     4) compare if the nodes have the same attributes and attribute values
+//          a) node.attributes, iterate through each and compare with getAttribute(name) and setAttribute(name, val)
+
+/*function reconcileDOM(first, second, parent) {
+    parent = parent || first.parentNode;
+
+    if (!(second instanceof Node)) { return false; }
+
+    // check nodeName
+    if (first instanceof Node && first.nodeName === second.nodeName) {
+        // remove attributes
+        if (first.attributes) {
+            for (let i=0, len=first.attributes.length; i < len; i++) {
+                if (!second.hasAttribute(first.attributes[i].name)) {
+                    first.removeAttribute(first.attributes[i].name);
+                }
+            }
+        }
+
+        // add attributes
+        if (second.attributes) {
+            for (let i=0, len=second.attributes.length; i < len; i++) {
+                first.setAttribute(second.attributes[i].name, second.attributes[i].value);
+            }
+        }
+
+        if (second.hasChildNodes()) {
+            // call recursively for each child node
+            for (let i=0, len=second.childNodes.length; i < len; i++) {
+                reconcileDOM(first.childNodes[i], second.childNodes[i], first);
+            }
+
+            if (first.hasChildNodes() && first.childNodes.length > second.childNodes.length) {
+                for (let i=second.childNodes.length, len=first.childNodes.length; i < len; i++) {
+                    first.childNodes[i].remove();
+                }
+            }
+        }
+    } else {
+        // insert second before first and remove first
+        if (parent instanceof Node) {
+            parent.insertBefore(second.cloneNode(true), first);
+            if (first instanceof Node) { first.remove(); }
+        } else {
+            first = second.cloneNode(true);
+        }
+    }
+}*/
 
 /*
 
