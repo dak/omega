@@ -1,87 +1,6 @@
 import csp from 'js-csp';
 import Stream from './stream';
 
-// TODO: Look into storing rendered html in a trie and memoizing the render function
-//       http://calendar.perfplanet.com/2013/diff/
-//       http://goo-apple.appspot.com/article/2e8334fc-45d1-42e2-adde-b43a17e8b12a
-//       http://facebook.github.io/react/docs/reconciliation.html
-//
-// algorithm:
-//   start from the DOM node associated with the view
-//   check if the node has any children (node.hasChildNodes())
-//   if it has children, recursively traverse through each node.childNodes
-//     1) compare if the nodes have the same nodeName (can localName be used and is it faster?)
-//          a) if not, add the new node
-//     2) compare if the nodes have the same nodeValue
-//          a) if not, set them equal
-//     3) compare if the nodes have the same classList (or use 'class' as an attribute and just getAttribute('class'))
-//          a) if not, set them equal
-//     4) compare if the nodes have the same attributes and attribute values
-//          a) node.attributes, iterate through each and compare with getAttribute(name) and setAttribute(name, val)
-
-
-/*
-Two nodes are equal if all the following conditions are true:
-
-They have the same Node Type
-They have the same nodeName, NodeValue, localName, nameSpaceURI and prefix
-They have the same childNodes with all the descendants
-They have the same attributes and attribute values (the attributes does not have be in the same order)
-*/
-// is it faster to cache some of these attributes?
-/*function reconcileDOMFast(first, second, parent) {
-    parent = parent || first.parentNode;
-
-    if (!(second instanceof Node)) { return null; }
-
-    // check nodeName
-    if (first instanceof Node && first.nodeName === second.nodeName) {
-        // remove attributes
-        if (first.attributes) {
-            for (var i=0, len=first.attributes.length; i < len; i++) {
-                if (!second.hasAttribute(first.attributes[i].name)) {
-                    first.removeAttribute(first.attributes[i].name);
-                }
-            }
-        }
-
-        // add attributes
-        if (second.attributes) {
-            for (var i=0, len=second.attributes.length; i < len; i++) {
-                if (first.getAttribute(second.attributes[i].name) !== second.attributes[i].value) {
-                    first.setAttribute(second.attributes[i].name, second.attributes[i].value);
-                }
-            }
-        }
-
-        // call recursively for each child node
-        if (second.hasChildNodes()) {
-            for (var i=j=0; i+j < second.childNodes.length; i++) {
-                j += reconcileDOMFast(first.childNodes[i], second.childNodes[i+j], first);
-            }
-        } else {
-            first.textContent = second.textContent;
-        }
-
-        if (first.childNodes.length > second.childNodes.length-j) {
-            for (var i=second.childNodes.length-j, len=first.childNodes.length; i < len; i++) {
-                first.childNodes[i].remove();
-            }
-        }
-
-        return 0;
-    } else {
-        // insert second before first and remove first
-        if (second && parent instanceof Node) {
-            parent.insertBefore(second, first);
-            if (first instanceof Node) { first.remove(); }
-            return -1;
-        }
-    }
-
-    return 0;
-}*/
-
 /*
 
 Built-in Property Binders
@@ -107,32 +26,17 @@ bindings: {
 
 let delegateEventSplitter = /^(\S+)\s*(.*)$/;
 
-function config (options) {
-    let viewOptions = ['el', 'model', 'events', 'sharedEvents'];
-
-    for (let i = 0, len = viewOptions.length; i < len; i++) {
-        let property = viewOptions[i],
-            option = options[property] || this[property];
-
-        if (typeof option === 'function') {
-            this[property] = option.apply(this);
-        } else if (option !== undefined) {
-            this[property] = option;
-        }
-    }
-}
-
 class Region {
 
     constructor (el, parent) {
+        this.parent = parent;
+        this.controllers = [];
+
         if (typeof el === 'string') {
             this.el = document.querySelector(el);
         } else {
             this.el = el;
         }
-
-        this.parent = parent;
-        this.controllers = [];
     }
 
     show (controller) {
@@ -142,7 +46,7 @@ class Region {
 
     append (controller) {
         if (typeof controller === 'function') {
-            controller = new controller();
+            controller = new controller({noRender: true});
         }
 
         controller.parent = this.parent;
@@ -159,7 +63,7 @@ class Region {
             this.controllers[i].close();
         }
 
-        while (this.el.firstChild) {
+        while (this.el && this.el.firstChild) {
             this.el.removeChild(this.el.firstChild);
         }
 
@@ -190,57 +94,156 @@ class Regions {
 
 // FIX: Are events lost on re-render since they're on DOM elements being replaced, not on the top-level element?
 
+// Internal Methods
+const RENDER = Symbol();
+const GET_TEMPLATE = Symbol();
+const GET_TEMPLATE_DATA = Symbol();
+const RECONCILE_DOM = Symbol();
+const CREATE_CHANNEL = Symbol();
+
+// Internal Properties
+const EVENT_LISTENERS = Symbol();
+const CHANNEL_EVENTS = Symbol();
+const CHANNELS = Symbol();
+const BINDINGS = Symbol();
+
 export default class Controller extends Stream {
 
     constructor (options = {}) {
         super();
 
-        this._eventListeners = [];
-        this._listenChannels = [];
+        this[EVENT_LISTENERS] = [];
+        this[CHANNEL_EVENTS] = [];
+        this[CHANNELS] = [];
+        this[BINDINGS] = [];
 
-        config.call(this, options);
+        let viewOptions = ['el', 'id', 'classes', 'model', 'events', 'channels', 'bindings'];
 
-        if (this.el) { this.setElement(this.el); }
-        this.regions = new Regions(this.regions, this);
+        for (let i = 0, len = viewOptions.length; i < len; i++) {
+            let property = viewOptions[i],
+                option = options[property] || this[property];
 
-        this.initialize.apply(this, arguments);
-        this.render.apply(this, arguments);
-
-        this.connectBindings();
-        this.delegateEvents();
-        this.delegateSharedEvents();
-    }
-
-    listen (el, event) {
-        let ch = csp.chan(),
-            callback = e => {
-                e.preventDefault();
-                e.stopPropagation();
-                csp.putAsync(ch, e);
-                return false;
+            if (typeof option === 'function') {
+                this[property] = option.apply(this);
+            } else if (option !== undefined) {
+                this[property] = option;
             }
-
-        el = el instanceof NodeList ? el : [el];
-
-        for (let i = 0, len = el.length; i < len; i++) {
-            el[i].addEventListener(event, callback);
-            this._eventListeners.push({el: el[i], event: event, callback: callback});
         }
 
-        this._listenChannels.push(ch);
+        this.init.apply(this, arguments);
 
-        return ch;
+        this.setElement(this.el);
+        if (!options.noRender) { this.render(); }
+        this.regions = new Regions(this.regions, this);
+
+        this.setup.apply(this, arguments);
     }
 
-    initialize () {}
+    init () {}
+    setup () {}
+
+    [GET_TEMPLATE] () {
+        if (typeof this.template === 'function') {
+            return this.template(this[GET_TEMPLATE_DATA]());
+        }
+
+        return this.template;
+    }
+
+    [GET_TEMPLATE_DATA] () {
+        let data = this.model ? this.model.toJSON() : {};
+
+        if (typeof this.templateHelpers === 'function') {
+            Object.assign(data, this.templateHelpers());
+        } else if (typeof this.templateHelpers === 'object') {
+            // Add data from template helpers to the model
+            // TODO: Use better/faster iterable
+            Object.keys(this.templateHelpers).forEach(function (key) {
+                let value = this.templateHelpers[key];
+                (typeof value === 'function') ? data[key] = value.apply(this) : data[key] = value;
+            }.bind(this));
+        }
+
+        return data;
+    }
+
+    // TODO: Use Window.requestAnimationFrame() to redraw everything with only 1 redraw
+    //       1 redraw every 16ms (60 fps)
+    //       See: https://github.com/lhorie/mithril.js/blob/next/mithril.js
+    [RECONCILE_DOM] (el, newEl) {
+        parent = parent || el.parentNode;
+
+        if (!(newEl instanceof Node)) { return; }
+
+        // check nodeName
+        if (el instanceof Node && el.nodeName === newEl.nodeName) {
+            // remove attributes
+            if (el.attributes) {
+                for (var i=0, len=el.attributes.length; i < len; i++) {
+                    if (!newEl.hasAttribute(el.attributes[i].name)) {
+                        el.removeAttribute(el.attributes[i].name);
+                    }
+                }
+            }
+
+            // add attributes
+            if (newEl.attributes) {
+                for (var i=0, len=newEl.attributes.length; i < len; i++) {
+                    if (el.getAttribute(newEl.attributes[i].name) !== newEl.attributes[i].value) {
+                        el.setAttribute(newEl.attributes[i].name, newEl.attributes[i].value);
+                    }
+                }
+            }
+
+            // call recursively for each child node
+            if (newEl.hasChildNodes()) {
+                for (var i=j=0; i+j < newEl.childNodes.length; i++) {
+                    j += reconcileDOMFast(el.childNodes[i], newEl.childNodes[i+j], el);
+                }
+            } else {
+                el.textContent = newEl.textContent;
+            }
+
+            if (el.childNodes.length > newEl.childNodes.length-j) {
+                for (var i=newEl.childNodes.length-j, len=el.childNodes.length; i < len; i++) {
+                    el.childNodes[i].remove();
+                }
+            }
+
+            return 0;
+        } else {
+            // insert newEl before el and remove el
+            if (newEl && parent instanceof Node) {
+                parent.insertBefore(newEl, el);
+                if (el instanceof Node) { el.remove(); }
+                return -1;
+            }
+        }
+
+        return 0;
+    }
 
     render () {
-        return this;
+        this.beforeRender();
+        let template = this[GET_TEMPLATE]();
+        if (typeof template === 'string') {
+            this.el.innerHTML = template;
+            this.attachEventHandlers();
+        } else {
+            this[RECONCILE_DOM](this.el, template);
+        }
+        this.afterRender();
+    }
+
+    attachEventHandlers () {
+        this.connectBindings();
+        this.delegateEvents();
+        this.createEventChannels();
     }
 
     // el.parentNode.removeChild(el);
 
-    // Set callbacks, where `this.sharedEvents` is a Map of
+    // Set callbacks, where `this.channels` is a Map of
     //
     // *[[callbackFunction, [event selectors]]]*
     //
@@ -254,13 +257,13 @@ export default class Controller extends Stream {
     // and will be passed the event channels as arguments.
     // Uses event delegation for efficiency.
     // Omitting the selector binds the event to `this.el`.
-    delegateSharedEvents (map) {
-        map = map || this['sharedEvents'];
+    createEventChannels (map) {
+        map = map || this['channels'];
 
         if (typeof map === 'function') map = map();
         if (!map) return this;
 
-        this.undelegateSharedEvents();
+        this.closeEventChannels();
 
         for (let [method, events] of map.entries()) {
             let channels = [];
@@ -278,7 +281,7 @@ export default class Controller extends Stream {
                     el = el.querySelectorAll(selector);
                 }
 
-                channels.push(this.listen(el, eventName));
+                channels.push(this[CREATE_CHANNEL](el, eventName));
             }
 
             method(...channels);
@@ -287,26 +290,85 @@ export default class Controller extends Stream {
         return this;
     }
 
-    undelegateSharedEvents () {
-        for (let i = 0, len = this._eventListeners.length; i < len; i++) {
-            let listener = this._eventListeners[i];
-            listener.el.removeEventListener(listener.event, listener.callback);
-        }
-        this._eventListeners = [];
+    [CREATE_CHANNEL] (el, event) {
+        let ch = csp.chan(),
+            // TODO: Make preventDefault and stopProp optional
+            callback = e => {
+                e.preventDefault();
+                e.stopPropagation();
+                csp.putAsync(ch, e);
+                return false;
+            }
 
-        for (let i = 0, len = this._listenChannels.length; i < len; i++) {
-            this._listenChannels[i].close();
+        el = el instanceof NodeList ? el : [el];
+
+        for (let i = 0, len = el.length; i < len; i++) {
+            el[i].addEventListener(event, callback);
+            this[CHANNEL_EVENTS].push({el: el[i], event: event, callback: callback});
         }
-        this._listenChannels = [];
+
+        this[CHANNELS].push(ch);
+
+        return ch;
     }
 
-    delegateEvents () {}
+    closeEventChannels () {
+        for (let i = 0, len = this[CHANNEL_EVENTS].length; i < len; i++) {
+            let listener = this[CHANNEL_EVENTS][i];
+            listener.el.removeEventListener(listener.event, listener.callback);
+        }
+        this[CHANNEL_EVENTS] = [];
 
-    undelegateEvents () {}
+        for (let i = 0, len = this[CHANNELS].length; i < len; i++) {
+            this[CHANNELS][i].close();
+        }
+        this[CHANNELS] = [];
+    }
 
-    connectBindings () {}
+    delegateEvents (events) {
+        events = events || this['events'];
 
-    destroyBindings () {}
+        if (typeof events === 'function') events = events();
+        if (!events) return this;
+
+        this.undelegateEvents();
+        for (let key in events) {
+            let method = events[key];
+            if (typeof method !== 'function') { method = this[events[key]]; }
+            if (!method) { continue; }
+
+            let el = this.el,
+                match = key.match(delegateEventSplitter),
+                eventName = match[1],
+                selector = match[2];
+
+            if (selector !== '') {
+                el = el.querySelectorAll(selector);
+            }
+
+            method = method.bind(this);
+            el.addEventListener(eventName, method.bind(this));
+            // FIX add event listener for every matching element
+            this[EVENT_LISTENERS].push({el: el[i], event: eventName, callback: method});
+        }
+        return this;
+    }
+
+    undelegateEvents () {
+        for (let i = 0, len = this[EVENT_LISTENERS].length; i < len; i++) {
+            let listener = this[EVENT_LISTENERS][i];
+            listener.el.removeEventListener(listener.event, listener.callback);
+        }
+        this[EVENT_LISTENERS] = [];
+    }
+
+    connectBindings () {
+
+    }
+
+    destroyBindings () {
+
+    }
 
     setElement (el) {
         if (typeof el === 'string') {
@@ -314,6 +376,8 @@ export default class Controller extends Stream {
         } else {
             this.el = document.createElement(this.tag || 'div');
         }
+
+        if (this.id) { this.el.id = id; }
 
         if (this.classes && this.classes.length > 0) {
             this.el.classList.add(...this.classes);
@@ -326,14 +390,20 @@ export default class Controller extends Stream {
         return this.regions.self.append(controller);
     }
 
+    beforeRender() {}
+    afterRender() {}
+    beforeClose() {}
+
     close () {
+        this.beforeClose();
+
         for (let i=0, len = this.regions.length; i < len; i++) {
             this.regions[i].close();
         }
 
         this.destroyBindings();
         this.undelegateEvents();
-        this.undelegateSharedEvents();
+        this.closeEventChannels();
 
         delete this.el;
         delete this.regions;

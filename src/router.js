@@ -1,21 +1,21 @@
 import csp from 'js-csp';
 import Stream from './stream';
 
-let defaultRoute = /.*/,
-    rootRoute = /^\/$/,
+let defaultRoute  = /.*/,
+    rootRoute     = /^\/$/,
     optionalParam = /\((.*?)\)/g,
     namedParam    = /(\(\?)?:\w+/g,
     splatParam    = /\*\w+/g,
     escapeRegExp  = /[\-{}\[\]+?.,\\\^$|#\s]/g;
 
-const SUBSCRIBE = Symbol();
+const REGISTER = Symbol();
 
 class Route extends Stream {
 
     constructor (url, router) {
         super();
 
-        this.ch = router[SUBSCRIBE](url);
+        this.ch = router[REGISTER](url);
     }
 
     load (page, options) {
@@ -28,7 +28,10 @@ class Route extends Stream {
                 // pass captured parts in to functions using spread operator
 
                 if (typeof page === 'string') {
-                    System.import(page).then(function (m) { new m.default(options) });
+                    System.import(page).then(function (m) {
+                        let page = new m.default(options);
+                        page.render();
+                    });
                 } else if (typeof page === 'function') {
                     page(route);
                 } else if (page && typeof page.load === 'function') {
@@ -57,7 +60,7 @@ export default class Router extends Stream {
 
         this.ch = csp.chan();
 
-        this[SUBSCRIBE] = (function (ch) {
+        this[REGISTER] = (function (ch) {
             let channels = new Map();
 
             csp.go(function* () {
@@ -67,6 +70,7 @@ export default class Router extends Stream {
                     for (let [chan, url] of channels) {
                         if (url.test(val)) {
                             yield csp.put(chan, val);
+                            break;
                         }
                     }
                 }
@@ -79,14 +83,14 @@ export default class Router extends Stream {
             }
         })(this.ch);
 
-        this.initialize.apply(this, arguments);
+        this.init.apply(this, arguments);
 
         // this.route('path').goto(login).goto(page).load(view1, view2, view3)
         // goto pauses execution before calling the next
         // load executes immediately
     }
 
-    initialize () {}
+    init () {}
 
     route (route) {
         if (!(route instanceof RegExp)) route = this[CONVERT_ROUTE](route);
