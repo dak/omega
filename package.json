@@ -30,6 +30,7 @@
             "lib": "src"
         },
         "dependencies": {
+            "ramda": "github:ramda/ramda@~0.9.1",
             "js-csp": "github:ubolonton/js-csp@^0.3.3"
         }
     },

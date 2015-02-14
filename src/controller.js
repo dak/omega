@@ -3,6 +3,13 @@ import Stream from './stream';
 
 /*
 
+Virtual DOM and DOM Diff:
+https://github.com/Matt-Esch/virtual-dom
+http://jsfiddle.net/sVPQL/34/
+https://gist.github.com/Raynos/8414846
+https://github.com/mattma/gulp-htmlbars
+https://github.com/epicmiller/rebound
+
 Built-in Property Binders
 
 value
